@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StreamLine | YouTube Downloader</title>
+    <meta name="description" content="Download high-quality YouTube videos up to 10GB directly to your browser." />
+    <link rel="stylesheet" href="/static/style.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+        .progress-bar { width: 100%; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; height: 12px; margin-top: 8px; }
+        .progress { height: 100%; background: #4ade80; width: 0%; transition: width 0.2s ease; }
+        .format-btn { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; margin: 6px 0; background: rgba(255,255,255,0.08); border: none; border-radius: 4px; color: #fff; cursor: pointer; }
+        .format-btn:hover { background: rgba(255,255,255,0.15); }
+        .format-btn.disabled { pointer-events: none; opacity: 0.5; }
+    </style>
+</head>
+<body>
+    <div class="background-effects">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+
+    <main class="container">
+        <header class="header">
+            <h1>StreamLine <span class="badge">PRO</span></h1>
+            <p>Download YouTube videos directly to your browser. Fast, secure, and up to 10GB.</p>
+        </header>
+
+        <section class="downloader-card">
+            <form id="fetchForm">
+                <div class="input-group">
+                    <input type="url" id="urlInput" placeholder="Paste your YouTube link here..." required />
+                    <button type="submit" id="fetchBtn">
+                        <span class="btn-text">Get Options</span>
+                        <div class="spinner hidden"></div>
+                    </button>
+                </div>
+                <p id="statusMessage" class="status-message hidden"></p>
+            </form>
+
+            <div id="optionsContainer" class="options-container hidden">
+                <h3 class="video-title" id="videoTitle"></h3>
+                <div class="format-list" id="formatList"></div>
+            </div>
+        </section>
+
+        <section class="features">
+            <div class="feature"><h3>Up to 10GB</h3><p>Support for massive files. Download long movies or full podcasts without limits.</p></div>
+            <div class="feature"><h3>Direct Stream</h3><p>Files are streamed directly to your browser for ultimate privacy and speed.</p></div>
+            <div class="feature"><h3>Multiple Qualities</h3><p>Choose between various video resolutions or just download the audio track.</p></div>
+        </section>
+    </main>
+
+    <script>
+        // Global flag to prevent concurrent downloads
+        let activeDownload = false;
+
+        function createPresetButton(preset) {
+            const btn = document.createElement('button');
+            btn.className = 'format-btn';
+            const sizeText = preset.size_mb !== null && preset.size_mb !== undefined ? `${preset.size_mb} MB` : 'Size ?';
+            btn.innerHTML = `<span>${preset.label}</span><span>${sizeText}</span>`;
+
+            // Build the native download URL and open it in a new tab.
+            btn.onclick = async () => {
+                if (activeDownload) return;
+                activeDownload = true;
+                // Disable all preset buttons
+                document.querySelectorAll('.format-btn').forEach(b => b.classList.add('disabled'));
+
+                btn.classList.add('downloading');
+                btn.innerHTML = `<span>Downloading…</span>`;
+
+                const downloadUrl = `/download?url=${encodeURIComponent(document.getElementById('urlInput').value)}&format=${encodeURIComponent(preset.format)}`;
+                // Open in a new tab – browser shows native download UI
+                window.open(downloadUrl, '_blank');
+
+                // Small timeout to reset UI after request started
+                setTimeout(() => {
+                    btn.classList.remove('downloading');
+                    btn.innerHTML = `<span>${preset.label}</span><span>${sizeText}</span>`;
+                    document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('disabled'));
+                    activeDownload = false;
+                }, 500);
+            };
+            return btn;
+        }
+
+        document.getElementById('fetchForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const url = document.getElementById('urlInput').value;
+            if (!url) return;
+
+            const btnText = document.querySelector('.btn-text');
+            const spinner = document.querySelector('.spinner');
+            const btn = document.getElementById('fetchBtn');
+            const statusMsg = document.getElementById('statusMessage');
+            const optionsContainer = document.getElementById('optionsContainer');
+            const formatList = document.getElementById('formatList');
+            const videoTitle = document.getElementById('videoTitle');
+
+            // Loading UI
+            btn.disabled = true;
+            btnText.classList.add('hidden');
+            spinner.classList.remove('hidden');
+            statusMsg.textContent = 'Fetching video info...';
+            statusMsg.className = 'status-message info';
+            statusMsg.classList.remove('hidden');
+            optionsContainer.classList.add('hidden');
+
+            try {
+                const res = await fetch(`/info?url=${encodeURIComponent(url)}`);
+                const data = await res.json();
+                if (res.ok) {
+                    statusMsg.classList.add('hidden');
+                    videoTitle.textContent = data.title || 'Video Options';
+                    formatList.innerHTML = '';
+                    if (Array.isArray(data.presets) && data.presets.length) {
+                        data.presets.forEach(preset => {
+                            const btn = createPresetButton(preset);
+                            formatList.appendChild(btn);
+                        });
+                        optionsContainer.classList.remove('hidden');
+                    } else {
+                        statusMsg.textContent = 'No download options found.';
+                        statusMsg.className = 'status-message error';
+                        statusMsg.classList.remove('hidden');
+                    }
+                } else {
+                    statusMsg.textContent = data.error || 'Failed to fetch info.';
+                    statusMsg.className = 'status-message error';
+                }
+            } catch (err) {
+                statusMsg.textContent = 'Network error while fetching options.';
+                statusMsg.className = 'status-message error';
+            } finally {
+                btn.disabled = false;
+                btnText.classList.remove('hidden');
+                spinner.classList.add('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
