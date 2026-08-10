@@ -1,10 +1,9 @@
 import subprocess
 import json
+import os
 from flask import Flask, render_template, request, Response, jsonify, stream_with_context
-from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)  # allow same‑origin requests
 
 @app.route('/')
 def index():
@@ -150,5 +149,6 @@ def download():
     return Response(stream_with_context(generate()), headers=headers, mimetype='application/octet-stream')
 
 if __name__ == '__main__':
-    # Bind to all interfaces so the browser can reach it
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Bind to all interfaces; use PORT env variable for cloud deployment
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
