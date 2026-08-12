@@ -1,7 +1,13 @@
 import subprocess
 import json
 import os
+import pathlib
 from flask import Flask, render_template, request, Response, jsonify, stream_with_context
+
+# Ensure Deno is on PATH (required by yt-dlp for YouTube JS extraction)
+deno_bin = str(pathlib.Path.home() / '.deno' / 'bin')
+if deno_bin not in os.environ.get('PATH', ''):
+    os.environ['PATH'] = deno_bin + os.pathsep + os.environ.get('PATH', '')
 
 app = Flask(__name__)
 
@@ -19,7 +25,7 @@ def get_video_info(url):
             capture_output=True,
             text=True,
             check=True,
-            timeout=20
+            timeout=30
         )
         return json.loads(proc.stdout)
     except subprocess.CalledProcessError as e:
@@ -33,7 +39,7 @@ def probe_filesize(url, fmt):
     try:
         result = subprocess.run(
             ['yt-dlp', '-f', fmt, '--print', 'filesize', '--skip-download', url],
-            capture_output=True, text=True, check=True, timeout=15
+            capture_output=True, text=True, check=True, timeout=20
         )
         size_str = result.stdout.strip()
         if size_str.isdigit():
@@ -125,7 +131,7 @@ def download():
     # Attempt to get an approximate filesize for the Content‑Length header
     size_header = None
     try:
-        probe = subprocess.run(['yt-dlp', '-f', fmt, '--print', 'filesize', '--skip-download', url], capture_output=True, text=True, check=True, timeout=15)
+        probe = subprocess.run(['yt-dlp', '-f', fmt, '--print', 'filesize', '--skip-download', url], capture_output=True, text=True, check=True, timeout=20)
         size = int(probe.stdout.strip())
         size_header = str(size)
     except Exception:
