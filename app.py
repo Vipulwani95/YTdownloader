@@ -2,7 +2,7 @@ import subprocess
 import json
 import os
 import pathlib
-from flask import Flask, render_template, request, Response, jsonify, stream_with_context
+from flask import Flask, render_template, request, Response, jsonify, stream_with_context, redirect
 
 # Ensure Deno is on PATH (required by yt-dlp for YouTube JS extraction)
 deno_bin = str(pathlib.Path.home() / '.deno' / 'bin')
@@ -117,41 +117,19 @@ def download():
         return "No URL provided", 400
     # Determine filename based on video title
     try:
-        title_proc = subprocess.run(['yt-dlp', '--extractor-args', 'youtube:player_client=android', '--get-title', url], capture_output=True, text=True, check=True)
-        filename = title_proc.stdout.strip()
-        filename = "".join([c for c in filename if c.isalnum() or c in (' ','.','-')]).rstrip()
-    except Exception:
-        filename = 'video'
-    # Guess extension
-    if fmt.startswith('bestaudio'):
-        filename += '.mp3'
-    else:
-        filename += '.mp4'
-    # Attempt to get an approximate filesize for the Content‑Length header
-    size_header = None
-    try:
-        probe = subprocess.run(['yt-dlp', '--extractor-args', 'youtube:player_client=android', '-f', fmt, '--print', 'filesize', '--skip-download', url], capture_output=True, text=True, check=True, timeout=20)
-        size = int(probe.stdout.strip())
-        size_header = str(size)
-    except Exception:
-        pass
-    def generate():
-        proc = subprocess.Popen(
-            ['yt-dlp', '--extractor-args', 'youtube:player_client=android', '-f', fmt, '-o', '-', url],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+        proc = subprocess.run(
+            ['yt-dlp', '--extractor-args', 'youtube:player_client=android', '-f', fmt, '-g', url],
+            capture_output=True,
+            text=True,
+            check=True
         )
-        while True:
-            chunk = proc.stdout.read(8192)
-            if not chunk:
-                break
-            yield chunk
-    headers = {
-        'Content-Disposition': f'attachment; filename="{filename}"'
-    }
-    if size_header:
-        headers['Content-Length'] = size_header
-    return Response(stream_with_context(generate()), headers=headers, mimetype='application/octet-stream')
+        download_url = proc.stdout.strip().split('\n')[0]
+        if download_url:
+            return redirect(download_url)
+        else:
+            return "Could not extract download URL.", 500
+    except Exception as e:
+        return f"Download failed: {e}", 500
 
 if __name__ == '__main__':
     # Bind to all interfaces; use PORT env variable for cloud deployment
