@@ -53,7 +53,7 @@
     </main>
 
     <script>
-        document.getElementById('fetchForm').addEventListener('submit', function (e) {
+        document.getElementById('fetchForm').addEventListener('submit', async function (e) {
             e.preventDefault();
             const url = document.getElementById('urlInput').value;
             if (!url) return;
@@ -70,35 +70,53 @@
             btn.disabled = true;
             btnText.classList.add('hidden');
             spinner.classList.remove('hidden');
-            statusMsg.classList.add('hidden');
+            statusMsg.textContent = 'Generating ad-free download link...';
+            statusMsg.className = 'status-message info';
+            statusMsg.classList.remove('hidden');
             optionsContainer.classList.add('hidden');
 
-            setTimeout(() => {
-                videoTitle.textContent = "Download Ready";
-                formatList.innerHTML = '';
+            try {
+                // Call the ad-free Cobalt API directly from the browser
+                const res = await fetch('https://co.wuk.sh/api/json', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        url: url,
+                        vQuality: "1080",
+                        isAudioOnly: false
+                    })
+                });
 
-                // Video Download Button (loader.to widget)
-                const videoIframe = document.createElement('iframe');
-                videoIframe.style = "width:100%;height:60px;border:0;overflow:hidden;margin-bottom:10px;";
-                videoIframe.scrolling = "no";
-                videoIframe.src = `https://loader.to/api/button/?url=${encodeURIComponent(url)}&f=1080`;
+                const data = await res.json();
 
-                // Audio Download Button (loader.to widget)
-                const audioIframe = document.createElement('iframe');
-                audioIframe.style = "width:100%;height:60px;border:0;overflow:hidden;";
-                audioIframe.scrolling = "no";
-                audioIframe.src = `https://loader.to/api/button/?url=${encodeURIComponent(url)}&f=mp3`;
+                if (data.status === 'stream' || data.status === 'redirect' || data.url) {
+                    statusMsg.classList.add('hidden');
+                    videoTitle.textContent = "Download Ready!";
+                    formatList.innerHTML = '';
 
-                formatList.appendChild(videoIframe);
-                formatList.appendChild(audioIframe);
+                    const downloadBtn = document.createElement('button');
+                    downloadBtn.className = 'format-btn';
+                    downloadBtn.innerHTML = `<span>Download Video (Ad-Free)</span><span>MP4</span>`;
+                    downloadBtn.onclick = () => {
+                        window.location.href = data.url;
+                    };
 
-                optionsContainer.classList.remove('hidden');
-
-                // Reset UI
+                    formatList.appendChild(downloadBtn);
+                    optionsContainer.classList.remove('hidden');
+                } else {
+                    throw new Error(data.text || "Failed to generate link");
+                }
+            } catch (err) {
+                statusMsg.textContent = 'Error: Could not fetch download. The free API might be busy.';
+                statusMsg.className = 'status-message error';
+            } finally {
                 btn.disabled = false;
                 btnText.classList.remove('hidden');
                 spinner.classList.add('hidden');
-            }, 500);
+            }
         });
     </script>
 </body>
