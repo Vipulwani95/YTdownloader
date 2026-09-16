@@ -21,7 +21,7 @@ def get_video_info(url):
     """
     try:
         proc = subprocess.run(
-            ['yt-dlp', '-j', url],
+            ['yt-dlp', '--extractor-args', 'youtube:player_client=android', '-j', url],
             capture_output=True,
             text=True,
             check=True,
@@ -38,7 +38,7 @@ def probe_filesize(url, fmt):
     """Return filesize in bytes for a given format string, or None if unavailable."""
     try:
         result = subprocess.run(
-            ['yt-dlp', '-f', fmt, '--print', 'filesize', '--skip-download', url],
+            ['yt-dlp', '--extractor-args', 'youtube:player_client=android', '-f', fmt, '--print', 'filesize', '--skip-download', url],
             capture_output=True, text=True, check=True, timeout=20
         )
         size_str = result.stdout.strip()
@@ -118,7 +118,7 @@ def download():
         return "No URL provided", 400
     # Determine filename based on video title
     try:
-        title_proc = subprocess.run(['yt-dlp', '--get-title', url], capture_output=True, text=True, check=True)
+        title_proc = subprocess.run(['yt-dlp', '--extractor-args', 'youtube:player_client=android', '--get-title', url], capture_output=True, text=True, check=True)
         filename = title_proc.stdout.strip()
         filename = "".join([c for c in filename if c.isalnum() or c in (' ','.','-')]).rstrip()
     except Exception:
@@ -131,14 +131,14 @@ def download():
     # Attempt to get an approximate filesize for the Content‑Length header
     size_header = None
     try:
-        probe = subprocess.run(['yt-dlp', '-f', fmt, '--print', 'filesize', '--skip-download', url], capture_output=True, text=True, check=True, timeout=20)
+        probe = subprocess.run(['yt-dlp', '--extractor-args', 'youtube:player_client=android', '-f', fmt, '--print', 'filesize', '--skip-download', url], capture_output=True, text=True, check=True, timeout=20)
         size = int(probe.stdout.strip())
         size_header = str(size)
     except Exception:
         pass
     def generate():
         proc = subprocess.Popen(
-            ['yt-dlp', '-f', fmt, '-o', '-', url],
+            ['yt-dlp', '--extractor-args', 'youtube:player_client=android', '-f', fmt, '-o', '-', url],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
