@@ -53,41 +53,7 @@
     </main>
 
     <script>
-        // Global flag to prevent concurrent downloads
-        let activeDownload = false;
-
-        function createPresetButton(preset) {
-            const btn = document.createElement('button');
-            btn.className = 'format-btn';
-            const sizeText = preset.size_mb !== null && preset.size_mb !== undefined ? `${preset.size_mb} MB` : 'Size ?';
-            btn.innerHTML = `<span>${preset.label}</span><span>${sizeText}</span>`;
-
-            // Build the native download URL and open it in a new tab.
-            btn.onclick = async () => {
-                if (activeDownload) return;
-                activeDownload = true;
-                // Disable all preset buttons
-                document.querySelectorAll('.format-btn').forEach(b => b.classList.add('disabled'));
-
-                btn.classList.add('downloading');
-                btn.innerHTML = `<span>Downloading…</span>`;
-
-                const downloadUrl = `/download?url=${encodeURIComponent(document.getElementById('urlInput').value)}&format=${encodeURIComponent(preset.format)}`;
-                // Open in a new tab – browser shows native download UI
-                window.open(downloadUrl, '_blank');
-
-                // Small timeout to reset UI after request started
-                setTimeout(() => {
-                    btn.classList.remove('downloading');
-                    btn.innerHTML = `<span>${preset.label}</span><span>${sizeText}</span>`;
-                    document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('disabled'));
-                    activeDownload = false;
-                }, 500);
-            };
-            return btn;
-        }
-
-        document.getElementById('fetchForm').addEventListener('submit', async function (e) {
+        document.getElementById('fetchForm').addEventListener('submit', function (e) {
             e.preventDefault();
             const url = document.getElementById('urlInput').value;
             if (!url) return;
@@ -100,45 +66,39 @@
             const formatList = document.getElementById('formatList');
             const videoTitle = document.getElementById('videoTitle');
 
-            // Loading UI
+            // Quick UI feedback
             btn.disabled = true;
             btnText.classList.add('hidden');
             spinner.classList.remove('hidden');
-            statusMsg.textContent = 'Fetching video info...';
-            statusMsg.className = 'status-message info';
-            statusMsg.classList.remove('hidden');
+            statusMsg.classList.add('hidden');
             optionsContainer.classList.add('hidden');
 
-            try {
-                const res = await fetch(`/info?url=${encodeURIComponent(url)}`);
-                const data = await res.json();
-                if (res.ok) {
-                    statusMsg.classList.add('hidden');
-                    videoTitle.textContent = data.title || 'Video Options';
-                    formatList.innerHTML = '';
-                    if (Array.isArray(data.presets) && data.presets.length) {
-                        data.presets.forEach(preset => {
-                            const btn = createPresetButton(preset);
-                            formatList.appendChild(btn);
-                        });
-                        optionsContainer.classList.remove('hidden');
-                    } else {
-                        statusMsg.textContent = 'No download options found.';
-                        statusMsg.className = 'status-message error';
-                        statusMsg.classList.remove('hidden');
-                    }
-                } else {
-                    statusMsg.textContent = data.error || 'Failed to fetch info.';
-                    statusMsg.className = 'status-message error';
-                }
-            } catch (err) {
-                statusMsg.textContent = 'Network error while fetching options.';
-                statusMsg.className = 'status-message error';
-            } finally {
+            setTimeout(() => {
+                videoTitle.textContent = "Download Ready";
+                formatList.innerHTML = '';
+
+                // Video Download Button (loader.to widget)
+                const videoIframe = document.createElement('iframe');
+                videoIframe.style = "width:100%;height:60px;border:0;overflow:hidden;margin-bottom:10px;";
+                videoIframe.scrolling = "no";
+                videoIframe.src = `https://loader.to/api/button/?url=${encodeURIComponent(url)}&f=1080`;
+
+                // Audio Download Button (loader.to widget)
+                const audioIframe = document.createElement('iframe');
+                audioIframe.style = "width:100%;height:60px;border:0;overflow:hidden;";
+                audioIframe.scrolling = "no";
+                audioIframe.src = `https://loader.to/api/button/?url=${encodeURIComponent(url)}&f=mp3`;
+
+                formatList.appendChild(videoIframe);
+                formatList.appendChild(audioIframe);
+
+                optionsContainer.classList.remove('hidden');
+
+                // Reset UI
                 btn.disabled = false;
                 btnText.classList.remove('hidden');
                 spinner.classList.add('hidden');
-            }
+            }, 500);
         });
     </script>
 </body>
