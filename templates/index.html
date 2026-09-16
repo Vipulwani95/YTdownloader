@@ -53,6 +53,40 @@
     </main>
 
     <script>
+        // Global flag to prevent concurrent downloads
+        let activeDownload = false;
+
+        function createPresetButton(preset) {
+            const btn = document.createElement('button');
+            btn.className = 'format-btn';
+            const sizeText = preset.size_mb !== null && preset.size_mb !== undefined ? `${preset.size_mb} MB` : 'Size ?';
+            btn.innerHTML = `<span>${preset.label}</span><span>${sizeText}</span>`;
+
+            // Build the native download URL and open it in a new tab.
+            btn.onclick = async () => {
+                if (activeDownload) return;
+                activeDownload = true;
+                // Disable all preset buttons
+                document.querySelectorAll('.format-btn').forEach(b => b.classList.add('disabled'));
+
+                btn.classList.add('downloading');
+                btn.innerHTML = `<span>Downloading…</span>`;
+
+                const downloadUrl = `/download?url=${encodeURIComponent(document.getElementById('urlInput').value)}&format=${encodeURIComponent(preset.format)}`;
+                // Open in a new tab – browser shows native download UI
+                window.open(downloadUrl, '_blank');
+
+                // Small timeout to reset UI after request started
+                setTimeout(() => {
+                    btn.classList.remove('downloading');
+                    btn.innerHTML = `<span>${preset.label}</span><span>${sizeText}</span>`;
+                    document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('disabled'));
+                    activeDownload = false;
+                }, 500);
+            };
+            return btn;
+        }
+
         document.getElementById('fetchForm').addEventListener('submit', async function (e) {
             e.preventDefault();
             const url = document.getElementById('urlInput').value;
@@ -66,51 +100,39 @@
             const formatList = document.getElementById('formatList');
             const videoTitle = document.getElementById('videoTitle');
 
-            // Quick UI feedback
+            // Loading UI
             btn.disabled = true;
             btnText.classList.add('hidden');
             spinner.classList.remove('hidden');
-            statusMsg.textContent = 'Generating ad-free download link...';
+            statusMsg.textContent = 'Fetching video info...';
             statusMsg.className = 'status-message info';
             statusMsg.classList.remove('hidden');
             optionsContainer.classList.add('hidden');
 
             try {
-                // Call the ad-free Cobalt API directly from the browser
-                const res = await fetch('https://co.wuk.sh/api/json', {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        url: url,
-                        vQuality: "1080",
-                        isAudioOnly: false
-                    })
-                });
-
+                const res = await fetch(`/info?url=${encodeURIComponent(url)}`);
                 const data = await res.json();
-
-                if (data.status === 'stream' || data.status === 'redirect' || data.url) {
+                if (res.ok) {
                     statusMsg.classList.add('hidden');
-                    videoTitle.textContent = "Download Ready!";
+                    videoTitle.textContent = data.title || 'Video Options';
                     formatList.innerHTML = '';
-
-                    const downloadBtn = document.createElement('button');
-                    downloadBtn.className = 'format-btn';
-                    downloadBtn.innerHTML = `<span>Download Video (Ad-Free)</span><span>MP4</span>`;
-                    downloadBtn.onclick = () => {
-                        window.location.href = data.url;
-                    };
-
-                    formatList.appendChild(downloadBtn);
-                    optionsContainer.classList.remove('hidden');
+                    if (Array.isArray(data.presets) && data.presets.length) {
+                        data.presets.forEach(preset => {
+                            const btn = createPresetButton(preset);
+                            formatList.appendChild(btn);
+                        });
+                        optionsContainer.classList.remove('hidden');
+                    } else {
+                        statusMsg.textContent = 'No download options found.';
+                        statusMsg.className = 'status-message error';
+                        statusMsg.classList.remove('hidden');
+                    }
                 } else {
-                    throw new Error(data.text || "Failed to generate link");
+                    statusMsg.textContent = data.error || 'Failed to fetch info.';
+                    statusMsg.className = 'status-message error';
                 }
             } catch (err) {
-                statusMsg.textContent = 'Error: Could not fetch download. The free API might be busy.';
+                statusMsg.textContent = 'Network error while fetching options.';
                 statusMsg.className = 'status-message error';
             } finally {
                 btn.disabled = false;
