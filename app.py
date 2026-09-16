@@ -50,47 +50,46 @@ def probe_filesize(url, fmt):
 
 
 def generate_presets(data, url):
-    """Create download presets with accurate size (MB) for each resolution.
-    Uses the metadata returned by yt‑dlp to avoid extra subprocess probes.
-    """
+    """Create download presets with accurate size (MB) for each resolution."""
     common_heights = [1080, 720, 480, 360, 240]
     presets = []
-    # Auto best – size unknown
+    
+    # Auto best (will pick highest quality pre-merged format)
     presets.append({"label": "Best (auto)", "format": "best", "size_mb": None})
-    # Helper: map height -> best combined format for that height
+    
+    # Helper: map height -> best pre-merged format for that height
     height_map = {}
     for f in data.get('formats', []):
         if f.get('vcodec') != 'none' and f.get('acodec') != 'none':
             h = f.get('height')
             if h:
-                # Keep the entry with the highest bitrate (approx size) for that height
                 size = f.get('filesize') or f.get('filesize_approx') or 0
                 if h not in height_map or size > height_map[h]["size"]:
                     height_map[h] = {"format_id": f.get('format_id'), "size": size, "ext": f.get('ext') or 'mp4'}
+                    
     # Build presets for each desired height
     for h in common_heights:
-        # Choose the highest available height <= target
         eligible = [hh for hh in height_map.keys() if hh <= h]
         if eligible:
             best_h = max(eligible)
+            fmt_str = height_map[best_h]["format_id"]
             size_bytes = height_map[best_h]["size"]
         else:
-            size_bytes = None
-        # If we still don't have a size, ask yt‑dlp to probe the exact format string
-        if size_bytes is None:
-            fmt_str = f"bestvideo[height<={h}]+bestaudio/best"
+            fmt_str = f"best[height<={h}]/best"
             size_bytes = probe_filesize(url, fmt_str)
-        else:
-            fmt_str = f"bestvideo[height<={h}]+bestaudio/best"
+            
         size_mb = round(size_bytes / (1024 * 1024), 1) if size_bytes else None
         presets.append({"label": f"{h}p", "format": fmt_str, "size_mb": size_mb})
-    # Audio‑only preset – pick largest audio‑only format
+        
+    # Audio‑only preset
     audio_formats = [f for f in data.get('formats', []) if f.get('vcodec') == 'none' and f.get('acodec') != 'none']
     if audio_formats:
         best_audio = max(audio_formats, key=lambda f: f.get('filesize') or f.get('filesize_approx') or 0)
+        fmt_str = best_audio.get('format_id') or "bestaudio"
         audio_size = best_audio.get('filesize') or best_audio.get('filesize_approx')
         audio_mb = round(audio_size / (1024 * 1024), 1) if audio_size else None
-        presets.append({"label": "Audio (mp3)", "format": "bestaudio[ext=m4a]/bestaudio", "size_mb": audio_mb})
+        presets.append({"label": "Audio (mp3)", "format": fmt_str, "size_mb": audio_mb})
+        
     return presets
 
 
